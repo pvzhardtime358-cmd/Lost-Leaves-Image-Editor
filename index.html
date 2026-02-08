@@ -256,7 +256,6 @@
                     const path = opt.path;
                     path.globalCompositeOperation = blend;
 
-                    // START FIX: Stay inside image boundaries for "colour textures"
                     if (blend === 'color') {
                         const target = canvas.getObjects().slice().reverse().find(o => o.type === 'image');
                         if (target) {
@@ -264,7 +263,6 @@
                             path.clipPath.absolutePositioned = true;
                         }
                     }
-                    // END FIX
 
                     canvas.renderAll();
                 }
