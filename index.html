@@ -434,4 +434,96 @@
     calculateHarmony();
 </script>
 </body>
-</html>
+</html>:root { --accent: #00ffcc; --bg: #0a0a0a; --panel: rgba(25, 25, 25, 0.98); --border: #444; }
+
+body, html { 
+    margin: 0; padding: 0; width: 100%; height: 100%; 
+    background: var(--bg); color: white; font-family: 'Segoe UI', Tahoma, sans-serif;
+    overflow: hidden; touch-action: none;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 10px; }
+::-webkit-scrollbar-track { background: #111; }
+
+#rotate-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: #000; z-index: 9999; display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+}
+@media screen and (orientation: portrait) { #rotate-overlay { display: flex; } }
+
+#canvas-wrapper { width: 100vw; height: 100vh; background: #050505; position: relative; transition: background 0.3s; overflow: hidden; }
+
+.animated { background-size: 400% 400% !important; animation: moveBG 8s ease infinite; }
+@keyframes moveBG {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.panel {
+    position: absolute; background: var(--panel); 
+    border: 1px solid var(--border); border-radius: 12px; 
+    padding: 12px; z-index: 100; display: flex; box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+    overflow-y: auto;
+}
+
+.tools { top: 10px; bottom: 10px; left: 10px; flex-direction: column; width: 65px; gap: 10px; }
+.props { top: 10px; right: 10px; width: 220px; flex-direction: column; gap: 15px; bottom: 10px; }
+
+.colors { 
+    top: 10px; left: 85px; right: 240px; height: auto;
+    flex-direction: column; gap: 8px; align-items: flex-start;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    max-height: 180px; overflow: hidden;
+}
+.colors.collapsed {
+    width: 60px; height: 60px; right: auto; padding: 5px; cursor: pointer;
+    border-color: var(--accent);
+}
+.colors.collapsed #pal, .colors.collapsed #harmony-row, .colors.collapsed .label {
+    display: none !important;
+}
+
+#color-rows { display: flex; align-items: center; gap: 10px; overflow-x: auto; width: 100%; padding-bottom: 8px; }
+#harmony-row { display: flex; gap: 8px; align-items: center; border-top: 1px solid #333; padding-top: 5px; width: 100%; overflow-x: auto; }
+
+#bg-lib-overlay, #import-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.95);
+    z-index: 1000; display: none; flex-direction: column; padding: 40px;
+}
+#bg-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 15px; overflow-y: auto; padding-right: 10px;
+}
+.bg-tile { height: 100px; border-radius: 12px; cursor: pointer; border: 2px solid #333; transition: 0.2s; }
+.bg-tile:hover { transform: scale(1.05); border-color: var(--accent); }
+.close-lib { align-self: flex-end; font-size: 35px; color: var(--accent); cursor: pointer; margin-bottom: 20px; font-weight: bold; }
+
+.modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.9);
+    z-index: 2000; display: none; align-items: center; justify-content: center;
+}
+.modal-content {
+    background: #1a1a1a; padding: 30px; border-radius: 15px; border: 1px solid var(--accent);
+    width: 320px; text-align: center;
+}
+.modal-content input[type="number"], select {
+    width: 100%; padding: 10px; margin: 10px 0; background: #222; border: 1px solid #444; color: white; border-radius: 5px; text-align: center;
+}
+
+.btn { min-height: 50px; width: 50px; background: #222; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; border: 1px solid var(--border); cursor: pointer; transition: 0.2s; flex-shrink: 0; }
+.btn:hover { border-color: var(--accent); }
+.btn.active { border-color: var(--accent); background: #1a3a35; }
+.swatch { min-width: 42px; height: 42px; border-radius: 50%; cursor: pointer; border: 2px solid #555; flex-shrink: 0; transition: 0.2s; }
+.swatch.harmony { min-width: 32px; height: 32px; border: 1px solid #777; }
+.save-btn { background: var(--accent); color: #000; font-weight: bold; border: none; padding: 15px; border-radius: 10px; cursor: pointer; width: 100%; }
+.secondary-btn { background: #333; color: white; border: 1px solid #555; padding: 12px; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 10px; }
+.del-btn { background: #3d1010; color: #ff6b6b; border: 1px solid #632121; padding: 10px; border-radius: 8px; width: 100%; margin-top: 10px; cursor: pointer; }
+.label { font-size: 10px; text-transform: uppercase; color: var(--accent); font-weight: bold; margin-bottom: 2px; display: block; }
+
+.nav-tool { background: #111; color: var(--accent); border: 1px dashed var(--accent); margin-top: 5px; }
+
+#palette-trigger { font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; height: 50px; width: 50px; flex-shrink: 0;}
