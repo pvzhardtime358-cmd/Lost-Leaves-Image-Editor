@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ULTIMATE STUDIO - 100+ BG EDITION</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <style>
+        :root { --accent: #00ffcc; --bg: #0a0a0a; --panel: rgba(30, 30, 30, 0.98); }
+        
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif;
+            overflow: hidden; touch-action: none;
+        }
+
+        #rotate-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 9999; display: none;
+            flex-direction: column; align-items: center; justify-content: center;
+        }
+        @media screen and (orientation: portrait) { #rotate-overlay { display: flex; } }
+
+        #canvas-wrapper { width: 100vw; height: 100vh; background: #111; position: relative; }
+
+        .panel {
+            position: absolute; background: var(--panel); 
+            border: 1px solid #444; border-radius: 12px; 
+            padding: 10px; z-index: 100; display: flex; box-shadow: 0 10px 40px rgba(0,0,0,0.7);
+        }
+
+        .tools { top: 10px; bottom: 10px; left: 10px; flex-direction: column; width: 60px; gap: 8px; justify-content: center; }
+        .props { top: 10px; right: 10px; width: 220px; flex-direction: column; gap: 12px; }
+        .colors { bottom: 10px; left: 85px; right: 250px; height: 65px; align-items: center; overflow-x: auto; gap: 10px; }
+
+        .btn {
+            width: 50px; height: 50px; background: #252525; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; border: 1px solid #444; cursor: pointer; transition: 0.2s;
+        }
+        .btn:active { transform: scale(0.9); }
+        .btn.active { border-color: var(--accent); background: #1a3a35; box-shadow: 0 0 15px var(--accent); }
+
+        /* FIXED BG LIBRARY WITH VISIBLE SCROLL */
+        #bg-lib {
+            position: absolute; top: 20px; left: 85px; right: 250px; bottom: 90px;
+            background: #111; border: 2px solid var(--accent); z-index: 200;
+            display: none; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+            gap: 15px; padding: 25px; overflow-y: scroll; border-radius: 20px;
+        }
+        /* Custom Scrollbar for visibility */
+        #bg-lib::-webkit-scrollbar { width: 10px; }
+        #bg-lib::-webkit-scrollbar-track { background: #222; border-radius: 10px; }
+        #bg-lib::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 10px; }
+
+        .bg-tile { height: 90px; border-radius: 10px; cursor: pointer; border: 2px solid #333; transition: 0.3s; }
+        .bg-tile:hover { transform: translateY(-5px); border-color: white; z-index: 5; }
+
+        .swatch { min-width: 45px; height: 45px; border-radius: 50%; cursor: pointer; border: 2px solid #555; flex-shrink: 0; }
+        input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+        .label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); font-weight: bold; }
+        
+        .save-btn { background: var(--accent); color: #000; font-weight: 900; border: none; padding: 15px; border-radius: 10px; cursor: pointer; font-size: 16px; }
+        .del-btn { background: #3d1010; color: #ff6b6b; border: 1px solid #632121; padding: 8px; border-radius: 8px; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div id="rotate-overlay">
+    <h1 style="color: var(--accent)">🔄 ROTATE TO LANDSCAPE</h1>
+    <p>The studio needs more width to work correctly.</p>
+</div>
+
+<div id="canvas-wrapper"><canvas id="c"></canvas></div>
+
+<div class="panel tools">
+    <div class="btn active" id="m-select" onclick="mode('select')">🖱️</div>
+    <div class="btn" id="m-brush" onclick="mode('brush')">🖌️</div>
+    <div class="btn" id="m-eraser" onclick="mode('eraser')">🧹</div>
+    <div class="btn" id="m-wand" onclick="mode('wand')">🪄</div>
+    <div class="btn" onclick="addText()"><b>T</b></div>
+    <div class="btn" onclick="toggleBG()">🖼️</div>
+    <label class="btn">📁<input type="file" id="up" hidden></label>
+    <div style="height:2px; background:#444; margin: 5px 0;"></div>
+    <div class="btn" onclick="addShape('sun')">☀️</div>
+    <div class="btn" onclick="addShape('moon')">🌙</div>
+    <div class="btn" onclick="addShape('star')">⭐</div>
+</div>
+
+<div class="panel props">
+    <div>
+        <span class="label">Brush Size</span>
+        <input type="range" id="size" min="1" max="250" value="25" oninput="updateBrush()">
+    </div>
+    <button class="save-btn" onclick="saveImage()">SAVE IMAGE</button>
+    <button class="del-btn" onclick="del()">DELETE SELECTION</button>
+</div>
+
+<div class="panel colors" id="pal">
+    <input type="color" id="picker" value="#00ffcc" style="width:50px; height:50px; border:none; background:none; cursor:pointer;" oninput="updateBrush()">
+</div>
+
+<div id="bg-lib"></div>
+
+<script>
+    const canvas = new fabric.Canvas('c', { width: window.innerWidth, height: window.innerHeight, preserveObjectStacking: true });
+    let currentMode = 'select';
+
+    function mode(m) {
+        currentMode = m;
+        document.querySelectorAll('.tools .btn').forEach(b => b.classList.remove('active'));
+        if(document.getElementById('m-'+m)) document.getElementById('m-'+m).classList.add('active');
+        canvas.isDrawingMode = (m === 'brush' || m === 'eraser');
+        if (canvas.isDrawingMode) updateBrush();
+    }
+
+    function updateBrush() {
+        if (!canvas.isDrawingMode) return;
+        canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
+        canvas.freeDrawingBrush.width = parseInt(document.getElementById('size').value);
+        if (currentMode === 'eraser') {
+            canvas.on('path:created', function(opt) { if(currentMode==='eraser'){ opt.path.globalCompositeOperation='destination-out'; canvas.renderAll(); } });
+        } else {
+            canvas.freeDrawingBrush.color = document.getElementById('picker').value;
+            canvas.off('path:created');
+        }
+    }
+
+    // UPDATED BG LIBRARY GENERATOR
+    function toggleBG() {
+        const bgLib = document.getElementById('bg-lib');
+        bgLib.style.display = bgLib.style.display === 'grid' ? 'none' : 'grid';
+        
+        if (bgLib.innerHTML === '') {
+            const styles = [];
+            // 1. Core Basics (12)
+            const basics = ['#ffffff','#000000','#ff0000','#00ff00','#0000ff','#ffff00','#ff00ff','#00ffff','#ffa500','#4b0082','#808080','#333333'];
+            basics.forEach(b => styles.push(b));
+
+            // 2. Full HSL Spectrum Solids (72 colors)
+            for (let i = 0; i < 360; i += 10) {
+                styles.push(`hsl(${i}, 80%, 50%)`); // Pure Vibrant
+                styles.push(`hsl(${i}, 30%, 20%)`); // Deep Midnight
+            }
+
+            // 3. Mixed Gradients (Over 60 variations)
+            for (let i = 0; i < 360; i += 18) {
+                styles.push(`linear-gradient(135deg, hsl(${i}, 80%, 50%), hsl(${(i+40)%360}, 80%, 30%))`);
+                styles.push(`radial-gradient(circle, hsl(${i}, 60%, 40%), #000)`);
+                styles.push(`linear-gradient(to right, hsl(${i}, 50%, 20%), hsl(${(i+90)%360}, 50%, 20%))`);
+            }
+
+            styles.forEach(bg => {
+                let div = document.createElement('div');
+                div.className = 'bg-tile';
+                div.style.background = bg;
+                div.onclick = () => {
+                    document.getElementById('canvas-wrapper').style.background = bg;
+                    bgLib.style.display = 'none';
+                };
+                bgLib.appendChild(div);
+            });
+        }
+    }
+
+    async function saveImage() {
+        const w = 2048, h = 1024;
+        const wrapper = document.getElementById('canvas-wrapper');
+        const bgStyle = window.getComputedStyle(wrapper);
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = w; exportCanvas.height = h;
+        const ctx = exportCanvas.getContext('2d');
+        ctx.fillStyle = bgStyle.backgroundColor || "#111";
+        ctx.fillRect(0, 0, w, h);
+        const multiplier = w / canvas.width;
+        const img = new Image();
+        img.onload = () => {
+            ctx.drawImage(img, 0, 0, w, h);
+            const link = document.createElement('a');
+            link.download = `Art_Studio_${Date.now()}.png`;
+            link.href = exportCanvas.toDataURL('image/png');
+            link.click();
+        };
+        img.src = canvas.toDataURL({ format: 'png', multiplier: multiplier });
+    }
+
+    const baseColors = ['#ffffff','#000000','#ff0000','#00ff00','#0000ff','#ffff00','#00ffff','#ff00ff','#ffa500','#4B0082'];
+    baseColors.forEach(c => {
+        let d = document.createElement('div');
+        d.className = 'swatch'; d.style.background = c;
+        d.onclick = () => { document.getElementById('picker').value = c; updateBrush(); };
+        document.getElementById('pal').appendChild(d);
+    });
+
+    document.getElementById('up').onchange = (e) => {
+        const r = new FileReader();
+        r.onload = (f) => fabric.Image.fromURL(f.target.result, img => {
+            img.scaleToWidth(canvas.width/3); canvas.add(img); canvas.centerObject(img);
+        });
+        r.readAsDataURL(e.target.files[0]);
+    };
+
+    function addText() { canvas.add(new fabric.IText('Double Click', { left: 150, top: 150, fill: '#fff', fontSize: 50 })); }
+    function addShape(t) {
+        let o;
+        if(t==='sun') o = new fabric.Circle({radius:60, fill:'#ffd700', shadow: {color:'#ffcc00', blur:40}});
+        if(t==='moon') o = new fabric.Path('M 50 0 A 50 50 0 1 0 50 100 A 40 40 0 1 1 50 0 Z', {fill:'#eee', scaleX:1.8, scaleY:1.8});
+        if(t==='star') o = new fabric.Polygon([{x:10,y:0},{x:13,y:7},{x:20,y:7},{x:15,y:12},{x:17,y:20},{x:10,y:15},{x:3,y:20},{x:5,y:12},{x:0,y:7},{x:7,y:7}], {fill:'#fff', scaleX:5, scaleY:5});
+        canvas.add(o); canvas.centerObject(o);
+    }
+    function del() { canvas.remove(...canvas.getActiveObjects()); canvas.discardActiveObject().renderAll(); }
+    window.onresize = () => { canvas.setDimensions({ width: window.innerWidth, height: window.innerHeight }); }
+</script>
+</body>
+</html>
