@@ -182,6 +182,15 @@
         <span class="label">Layer Opacity</span>
         <input type="range" id="opacity" min="1" max="100" value="100" oninput="updateOpacity()">
     </div>
+
+    <div style="border: 1px solid #444; padding: 8px; border-radius: 8px; background: rgba(0,0,0,0.3);">
+        <span class="label" style="color:#00ffcc;">Remove Image BG</span>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px;">
+            <button class="secondary-btn" style="margin-top:5px; padding: 5px; font-size: 10px;" onclick="removeLayerBG('#ffffff')">WHITE</button>
+            <button class="secondary-btn" style="margin-top:5px; padding: 5px; font-size: 10px;" onclick="removeLayerBG('#000000')">BLACK</button>
+        </div>
+        <p style="font-size: 9px; color: #777; margin: 5px 0 0;">Select image layer first</p>
+    </div>
     
     <div>
         <span class="label">Drawing Layer Type</span>
@@ -223,7 +232,6 @@
 
     function expandColors(e) {
         const panel = document.getElementById('color-panel');
-        // Check for click on trigger div or icon inside it
         if(panel.classList.contains('collapsed')) {
             panel.classList.remove('collapsed');
         } else if (e.target.id === 'palette-trigger' || e.target.parentElement.id === 'palette-trigger') {
@@ -270,7 +278,6 @@
                             path.clipPath.absolutePositioned = true;
                         }
                     }
-
                     canvas.renderAll();
                 }
             });
@@ -287,6 +294,25 @@
     function updateOpacity() {
         const active = canvas.getActiveObject();
         if(active) { active.set('opacity', document.getElementById('opacity').value / 100); canvas.renderAll(); }
+    }
+
+    // New function to remove background from an uploaded image layer
+    function removeLayerBG(hex) {
+        const active = canvas.getActiveObject();
+        if(!active || active.type !== 'image') {
+            alert("Select an uploaded image layer first.");
+            return;
+        }
+        
+        // Use Fabric's RemoveColor filter
+        const filter = new fabric.Image.filters.RemoveColor({
+            color: hex,
+            distance: 0.12 // Sensitivity: 0.12 is usually good for JPG artifacts
+        });
+        
+        active.filters.push(filter);
+        active.applyFilters();
+        canvas.renderAll();
     }
 
     function hexToHsl(hex) {
@@ -337,12 +363,6 @@
             styles.push({s:`linear-gradient(45deg, hsl(${h1}, 100%, 40%) 0%, hsl(${h2}, 100%, 30%) 100%)`, a:false});
         }
         for(let h=0; h<360; h+=1.8) styles.push({s:`linear-gradient(90deg, #000, hsl(${h}, 100%, 50%), #000)`, a: true});
-        for(let h=0; h<360; h+=0.4) {
-            styles.push({s:`linear-gradient(to bottom, hsl(${h},100%,50%), hsl(${(h+20)%360},100%,50%), hsl(${(h+40)%360},100%,50%))`, a:false});
-        }
-        for(let h=0; h<360; h+=2) {
-            styles.push({s:`linear-gradient(135deg, #050505 0%, hsl(${h}, 100%, 15%) 100%)`, a:false});
-        }
         document.getElementById('bg-count').innerText = styles.length;
         styles.forEach(bg => {
             const d = document.createElement('div'); d.className = 'bg-tile' + (bg.a ? ' animated' : ''); d.style.background = bg.s;
@@ -359,8 +379,6 @@
         const pal = document.getElementById('pal');
         for(let i=0; i<=100; i+=2) createSwatch(hslToHex(0, 0, i));
         for(let h=0; h<360; h+=0.5) createSwatch(hslToHex(h, 100, 50));
-        for(let h=0; h<360; h+=0.7) createSwatch(hslToHex(h, 90, 15));
-        for(let h=0; h<360; h+=1.2) createSwatch(hslToHex(h, 40, 60));
     }
 
     function createSwatch(c) {
@@ -395,7 +413,7 @@
             document.getElementById('blend-mode').value = (type === 'tint') ? 'color' : 'source-over';
             if(type === 'tint') mode('brush');
             closeImport();
-        });
+        }, { crossOrigin: 'anonymous' });
     }
 
     function closeImport() { document.getElementById('import-overlay').style.display = 'none'; pendingImage = null; }
@@ -403,18 +421,40 @@
     function openSaveModal() { document.getElementById('export-modal').style.display = 'flex'; }
     function closeModal() { document.getElementById('export-modal').style.display = 'none'; }
 
+    // Updated finalizeSave to handle transparency correctly
     async function finalizeSave() {
-        const w = document.getElementById('exp-w').value, h = document.getElementById('exp-h').value;
-        const wrapper = document.getElementById('canvas-wrapper'), bgStyle = window.getComputedStyle(wrapper);
+        const w = parseInt(document.getElementById('exp-w').value), h = parseInt(document.getElementById('exp-h').value);
         const isTransparent = document.getElementById('exp-transparent').checked;
-        const exportCanvas = document.createElement('canvas'); exportCanvas.width = w; exportCanvas.height = h;
+        
+        // We use a temporary multiplier to get high-res without changing the current view
+        const dataURL = canvas.toDataURL({ 
+            format: 'png', 
+            multiplier: w / canvas.width,
+            enableRetinaScaling: false 
+        });
+
+        const exportCanvas = document.createElement('canvas'); 
+        exportCanvas.width = w; 
+        exportCanvas.height = h;
         const ctx = exportCanvas.getContext('2d');
+
+        // Only draw the editor background if transparent is NOT checked
         if(!isTransparent) {
-            ctx.fillStyle = bgStyle.backgroundColor || "#050505"; ctx.fillRect(0, 0, w, h);
+            const wrapper = document.getElementById('canvas-wrapper');
+            const bgStyle = window.getComputedStyle(wrapper);
+            ctx.fillStyle = bgStyle.backgroundColor || "#050505"; 
+            ctx.fillRect(0, 0, w, h);
         }
-        const dataURL = canvas.toDataURL({ format: 'png', multiplier: w / canvas.width });
+
         const img = new Image();
-        img.onload = () => { ctx.drawImage(img, 0, 0); const link = document.createElement('a'); link.download = `Art_${Date.now()}.png`; link.href = exportCanvas.toDataURL('image/png'); link.click(); closeModal(); };
+        img.onload = () => { 
+            ctx.drawImage(img, 0, 0); 
+            const link = document.createElement('a'); 
+            link.download = `Art_${Date.now()}.png`; 
+            link.href = exportCanvas.toDataURL('image/png'); 
+            link.click(); 
+            closeModal(); 
+        };
         img.src = dataURL;
     }
 
