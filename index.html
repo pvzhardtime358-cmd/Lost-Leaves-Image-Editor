@@ -296,7 +296,6 @@
         if(active) { active.set('opacity', document.getElementById('opacity').value / 100); canvas.renderAll(); }
     }
 
-    // New function to remove background from an uploaded image layer
     function removeLayerBG(hex) {
         const active = canvas.getActiveObject();
         if(!active || active.type !== 'image') {
@@ -304,10 +303,9 @@
             return;
         }
         
-        // Use Fabric's RemoveColor filter
         const filter = new fabric.Image.filters.RemoveColor({
             color: hex,
-            distance: 0.12 // Sensitivity: 0.12 is usually good for JPG artifacts
+            distance: 0.12 
         });
         
         active.filters.push(filter);
@@ -405,9 +403,15 @@
         r.readAsDataURL(file);
     };
 
+    /** MODIFIED: Sets export resolution to original image dimensions **/
     function processImport(type) {
         fabric.Image.fromURL(pendingImage, img => {
-            img.scaleToWidth(canvas.width/3);
+            // Update export dimensions in the save modal to match original quality
+            document.getElementById('exp-w').value = img.width;
+            document.getElementById('exp-h').value = img.height;
+
+            // Make it fit nicely on screen while editing
+            img.scaleToWidth(canvas.width * 0.7); 
             canvas.add(img);
             canvas.centerObject(img);
             document.getElementById('blend-mode').value = (type === 'tint') ? 'color' : 'source-over';
@@ -421,15 +425,15 @@
     function openSaveModal() { document.getElementById('export-modal').style.display = 'flex'; }
     function closeModal() { document.getElementById('export-modal').style.display = 'none'; }
 
-    // Updated finalizeSave to handle transparency correctly
+    /** MODIFIED: Uses calculated multiplier to ensure high-res export **/
     async function finalizeSave() {
         const w = parseInt(document.getElementById('exp-w').value), h = parseInt(document.getElementById('exp-h').value);
         const isTransparent = document.getElementById('exp-transparent').checked;
         
-        // We use a temporary multiplier to get high-res without changing the current view
+        // Multiplier ensures the snapshot is high-res regardless of browser window size
         const dataURL = canvas.toDataURL({ 
             format: 'png', 
-            multiplier: w / canvas.width,
+            multiplier: w / canvas.width, 
             enableRetinaScaling: false 
         });
 
@@ -438,7 +442,6 @@
         exportCanvas.height = h;
         const ctx = exportCanvas.getContext('2d');
 
-        // Only draw the editor background if transparent is NOT checked
         if(!isTransparent) {
             const wrapper = document.getElementById('canvas-wrapper');
             const bgStyle = window.getComputedStyle(wrapper);
@@ -448,7 +451,8 @@
 
         const img = new Image();
         img.onload = () => { 
-            ctx.drawImage(img, 0, 0); 
+            // Draw image while ensuring it fits the specified dimensions
+            ctx.drawImage(img, 0, 0, w, h); 
             const link = document.createElement('a'); 
             link.download = `Art_${Date.now()}.png`; 
             link.href = exportCanvas.toDataURL('image/png'); 
