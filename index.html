@@ -32,23 +32,7 @@
         }
         @media screen and (orientation: portrait) { #rotate-overlay { display: flex; } }
 
-        #canvas-wrapper { 
-            width: 100vw; 
-            height: 100vh; 
-            background: #050505; 
-            position: relative; 
-            transition: background 0.3s; 
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* This ensures the high-res canvas fits the screen visually */
-        .canvas-container {
-            max-width: 100% !important;
-            max-height: 100% !important;
-        }
+        #canvas-wrapper { width: 100vw; height: 100vh; background: #050505; position: relative; transition: background 0.3s; overflow: hidden; }
 
         .animated { background-size: 400% 400% !important; animation: moveBG 8s ease infinite; }
         @keyframes moveBG {
@@ -245,6 +229,9 @@
     const canvas = new fabric.Canvas('c', { width: window.innerWidth, height: window.innerHeight, preserveObjectStacking: true });
     let currentMode = 'select';
     let pendingImage = null;
+    // Variables to hold the true dimensions of the uploaded image
+    let originalImgWidth = 1920; 
+    let originalImgHeight = 1080;
 
     function expandColors(e) {
         const panel = document.getElementById('color-panel');
@@ -419,17 +406,21 @@
         r.readAsDataURL(file);
     };
 
-    /** UPDATED: Resizes canvas coordinate system to match uploaded image exactly **/
+    // MODIFIED: Captures original dimensions but scales image to fit screen for editing
     function processImport(type) {
         fabric.Image.fromURL(pendingImage, img => {
-            // Force canvas pixels to match image pixels
-            canvas.setWidth(img.width);
-            canvas.setHeight(img.height);
-            
-            // Set save modal defaults to original image size
-            document.getElementById('exp-w').value = img.width;
-            document.getElementById('exp-h').value = img.height;
+            // 1. Store original dimensions for later export
+            originalImgWidth = img.width;
+            originalImgHeight = img.height;
 
+            // 2. Update the export modal inputs so they default to the correct high-res size
+            document.getElementById('exp-w').value = originalImgWidth;
+            document.getElementById('exp-h').value = originalImgHeight;
+
+            // 3. Scale the image visually to fit nicely on the current screen canvas
+            const scaleFactor = (canvas.width * 0.8) / img.width;
+            img.scale(scaleFactor);
+            
             canvas.add(img);
             canvas.centerObject(img);
             
@@ -444,33 +435,38 @@
     function openSaveModal() { document.getElementById('export-modal').style.display = 'flex'; }
     function closeModal() { document.getElementById('export-modal').style.display = 'none'; }
 
-    /** UPDATED: High-fidelity export at original pixel dimensions **/
+    // MODIFIED: Uses a multiplier to export at high resolution regardless of screen size
     async function finalizeSave() {
-        const w = parseInt(document.getElementById('exp-w').value), h = parseInt(document.getElementById('exp-h').value);
+        // Get intended dimensions from inputs (which default to original image size)
+        const intendedW = parseInt(document.getElementById('exp-w').value);
+        const intendedH = parseInt(document.getElementById('exp-h').value);
         const isTransparent = document.getElementById('exp-transparent').checked;
         
-        // Multiplier is 1 because we already set the canvas to match the image size
+        // Calculate how much bigger the output needs to be compared to the current screen canvas
+        const multiplier = intendedW / canvas.width;
+
         const dataURL = canvas.toDataURL({ 
             format: 'png', 
-            multiplier: w / canvas.width,
+            multiplier: multiplier, 
             enableRetinaScaling: false 
         });
 
         const exportCanvas = document.createElement('canvas'); 
-        exportCanvas.width = w; 
-        exportCanvas.height = h;
+        exportCanvas.width = intendedW; 
+        exportCanvas.height = intendedH;
         const ctx = exportCanvas.getContext('2d');
 
         if(!isTransparent) {
             const wrapper = document.getElementById('canvas-wrapper');
             const bgStyle = window.getComputedStyle(wrapper);
             ctx.fillStyle = bgStyle.backgroundColor || "#050505"; 
-            ctx.fillRect(0, 0, w, h);
+            ctx.fillRect(0, 0, intendedW, intendedH);
         }
 
         const img = new Image();
         img.onload = () => { 
-            ctx.drawImage(img, 0, 0, w, h); 
+            // Draw the high-res result onto the export canvas
+            ctx.drawImage(img, 0, 0, intendedW, intendedH); 
             const link = document.createElement('a'); 
             link.download = `Art_${Date.now()}.png`; 
             link.href = exportCanvas.toDataURL('image/png'); 
@@ -497,8 +493,8 @@
     
     function del() { canvas.remove(...canvas.getActiveObjects()); canvas.discardActiveObject().renderAll(); }
     
-    // When window resizes, we keep the internal canvas pixels the same, but let CSS scale it
-    window.onresize = () => { /* No-op to preserve high-res pixels */ }
+    // Restored original resize behavior to fix background patterns
+    window.onresize = () => { canvas.setDimensions({ width: window.innerWidth, height: window.innerHeight }); }
     
     initBGLibrary();
     initColors();
